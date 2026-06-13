@@ -1,0 +1,13 @@
+module(
+    name = "yarik_apps",
+    version = "0.1.0",
+)
+
+# Provides the @platforms//cpu and @platforms//os constraint values used by the
+# target platform and the cross-compiling toolchain.
+bazel_dep(name = "platforms", version = "0.0.10")
+
+# Cross-compiling C++ toolchain for the Raspberry Pi Zero 2 W (64-bit, aarch64,
+# Cortex-A53). It wraps the Debian `aarch64-linux-gnu` cross compiler that the
+# builder Docker image installs (apps/docker/Dockerfile).
+register_toolchains("//toolchain:aarch64_cc_toolchain")

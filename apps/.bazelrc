@@ -1,0 +1,8 @@
+# Always cross-compile for the Pi Zero 2 W (64-bit, aarch64) by default.
+# Override on the command line with `--platforms=` for a host build.
+build --platforms=//platforms:rpi_zero2w
+
+# Release-style build (enables the `opt` feature -> -O2 -DNDEBUG).
+build -c opt
+
+common --enable_bzlmod

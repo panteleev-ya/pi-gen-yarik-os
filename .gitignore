@@ -7,3 +7,8 @@ SKIP_IMAGES
 .pc
 *-pc
 .vscode/
+
+# Built app artifacts (produced by `make app`) and Bazel / download caches
+dist/
+.cache/
+apps/bazel-*
