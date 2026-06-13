@@ -213,9 +213,12 @@ stage2  Lite: ssh · Wi-Fi · apt   ── 05-yarik-httpd installs dist/yarik-ap
 EXPORT_IMAGE → deploy/yarikOS.img
 ```
 
-The finished image lands in `deploy/`. (`make app` and `make image` are
-decoupled; `make image` fails fast if `dist/` is missing.) For incremental
-pi-gen rebuilds, see [pi-gen.md](pi-gen.md).
+The finished image lands in `deploy/`. `make image` depends on `app`, so the
+binary is always (re)built and staged into `dist/` first — Bazel is incremental,
+so it's a no-op when unchanged. Running `./build-docker.sh` directly skips the
+app phase and hard-fails in `stage2/05-yarik-httpd` if `dist/yarik-app` is
+missing — use `make` (or `make app`) instead. For incremental pi-gen rebuilds,
+see [pi-gen.md](pi-gen.md).
 
 ### Flashing
 
