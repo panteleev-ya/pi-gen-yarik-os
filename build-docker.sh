@@ -4,6 +4,21 @@ set -eu
 
 DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
+# Extract our own --continue flag (reuse the existing build container instead of
+# rebuilding from scratch) before the getopts parsing below, which only handles
+# short options. Everything else is forwarded to build.sh unchanged.
+CONTINUE=${CONTINUE:-0}
+_pigen_args=""
+for _arg in "$@"; do
+	if [ "${_arg}" = "--continue" ]; then
+		CONTINUE=1
+	else
+		_pigen_args="${_pigen_args:+${_pigen_args} }${_arg}"
+	fi
+done
+# shellcheck disable=SC2086
+set -- ${_pigen_args}
+
 BUILD_OPTS="$*"
 
 # Allow user to override docker command
@@ -73,10 +88,12 @@ if [ "${CONTAINER_RUNNING}" != "" ]; then
 	exit 1
 fi
 if [ "${CONTAINER_EXISTS}" != "" ] && [ "${CONTINUE}" != "1" ]; then
-	echo "Container ${CONTAINER_NAME} already exists and you did not specify CONTINUE=1. Aborting."
-	echo "You can delete the existing container like this:"
-	echo "  ${DOCKER} rm -v ${CONTAINER_NAME}"
-	exit 1
+	# A leftover container (e.g. from a previous failed build) would otherwise
+	# block this build. Remove it and start fresh. Pass --continue (or
+	# CONTINUE=1) to resume that previous build instead.
+	echo "Removing existing container ${CONTAINER_NAME} for a fresh build (pass --continue to reuse it)..."
+	${DOCKER} rm -v "${CONTAINER_NAME}"
+	CONTAINER_EXISTS=""
 fi
 
 # Modify original build-options to allow config file to be mounted in the docker container

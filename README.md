@@ -8,6 +8,10 @@ baked straight into the image.
 No desktop, no GUI. Just a serial console, Wi-Fi, SSH, apt, the standard Linux
 terminal toolset, and our web server listening on port `1337`.
 
+> **To build the repo into a flashable image, run `make`** (Docker required).
+> It compiles the source in [`apps/`](apps/) and writes the image to `deploy/`.
+> See [How it's built](#how-its-built) for details.
+
 > **Base pi-gen documentation** (stages, config reference, Docker internals,
 > troubleshooting) lives in **[pi-gen.md](pi-gen.md)**. This README only covers
 > what is specific to *this* project. The desktop stages (`stage3`–`stage5`) have
@@ -184,13 +188,19 @@ chmod +x stage2/06-mytool/00-run.sh
 
 ## How it's built
 
-The build has **two phases** — compile the apps, then build the image. Both run
-in Docker (required on macOS; have Docker running):
+**To build the repo into a flashable image, run `make`** (Docker required):
 
 ```bash
-make app      # 1. Bazel cross-compiles apps/ → dist/yarik-app (static aarch64)
-make image    # 2. pi-gen builds the image, embedding dist/yarik-app → deploy/
-make          # both, in order
+make          # compile apps/ → dist/, then build the image → deploy/
+```
+
+That is the one command you need. `make` runs two phases for you; the
+sub-targets are only for partial work:
+
+```bash
+make app          # only cross-compile the apps → dist/yarik-app (static aarch64)
+make image        # only build the image (still builds apps first) → deploy/
+make CONTINUE=1   # resume a previous/interrupted build instead of starting fresh
 ```
 
 **Phase 1 — `make app`** ([scripts/build-apps.sh](scripts/build-apps.sh)): builds
@@ -214,11 +224,13 @@ EXPORT_IMAGE → deploy/yarikOS.img
 ```
 
 The finished image lands in `deploy/`. `make image` depends on `app`, so the
-binary is always (re)built and staged into `dist/` first — Bazel is incremental,
-so it's a no-op when unchanged. Running `./build-docker.sh` directly skips the
-app phase and hard-fails in `stage2/05-yarik-httpd` if `dist/yarik-app` is
-missing — use `make` (or `make app`) instead. For incremental pi-gen rebuilds,
-see [pi-gen.md](pi-gen.md).
+binary is always (re)built and staged into `dist/` first (Bazel is incremental,
+so it's a no-op when unchanged). A leftover `pigen_work` container from a
+previous or failed build is **removed automatically** so the next build starts
+clean — pass `make CONTINUE=1` (or `./build-docker.sh --continue`) to *resume*
+that previous build instead. Running `./build-docker.sh` directly skips the app
+phase and hard-fails in `stage2/05-yarik-httpd` if `dist/yarik-app` is missing,
+so prefer `make`. For incremental pi-gen rebuilds, see [pi-gen.md](pi-gen.md).
 
 ### Flashing
 
