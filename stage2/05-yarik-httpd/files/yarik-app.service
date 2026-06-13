@@ -1,0 +1,23 @@
+[Unit]
+Description=yarik-os demo HTTP server (port 1337)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/yarik-app
+Restart=on-failure
+RestartSec=2
+
+# The server only binds a high port (1337) and serves a static string, so it
+# needs no privileges. Run it as a transient unprivileged user and sandbox it.
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
