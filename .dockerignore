@@ -3,3 +3,7 @@ work/
 deploy/
 apt-cacher-ng/
 .git/objects/*
+# App sources and caches aren't needed inside the pi-gen image; only the built
+# artifact in dist/ is consumed by the stage, so keep dist/ out of this list.
+apps/
+.cache/

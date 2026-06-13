@@ -24,7 +24,7 @@ terminal toolset, and our web server listening on port `1337`.
 | SSH | `openssh-server`, `ENABLE_SSH=1` |
 | Package manager + build tools | `apt`, `build-essential` / `g++`, Python, etc. |
 | mDNS | avahi → reachable as `yarikos.local` |
-| **yarik-os HTTP server** | compiled in-image, runs as `yarik-app.service` on `:1337` |
+| **yarik-os HTTP server** | Bazel-built static aarch64 binary, runs as `yarik-app.service` on `:1337` |
 
 Default login: **`yarikp` / `12345`**, hostname **`yarikos`**.
 
@@ -92,7 +92,7 @@ session), or **`Ctrl-A`** then **`D`** to detach and leave it running.
 
 ## The baked-in HTTP server
 
-The server (source: [stage2/05-yarik-httpd/files/main.cpp](stage2/05-yarik-httpd/files/main.cpp))
+The server (source: [apps/yarik-httpd/main.cpp](apps/yarik-httpd/main.cpp))
 listens on `0.0.0.0:1337` and answers `GET /` with `It is yarik-os!`. It runs on
 boot as a sandboxed systemd service.
 
@@ -109,33 +109,63 @@ journalctl -u yarik-app
 
 ## Where the custom code lives
 
-Everything that diverges from upstream pi-gen:
+All custom **source code** lives in [`apps/`](apps/) — a self-contained Bazel
+workspace, completely separate from the pi-gen stages. The stages never contain
+source or a compiler; they only consume the pre-built binary from `dist/`.
 
 | Path | Purpose |
 |---|---|
+| [`apps/`](apps/) | Bazel workspace for all custom programs (separate from stages) |
+| ├─ [`yarik-httpd/main.cpp`](apps/yarik-httpd/main.cpp) | The C++ HTTP server source |
+| ├─ `yarik-httpd/BUILD.bazel` | `cc_binary(name = "yarik-app")` |
+| ├─ `toolchain/`, `platforms/` | aarch64 (Cortex-A53) cross-compile toolchain & target platform |
+| ├─ `docker/Dockerfile` | Builder image: Bazelisk + `aarch64-linux-gnu` cross compiler |
+| └─ `MODULE.bazel`, `.bazelrc` | Bazel config (defaults to a static aarch64 `-c opt` build) |
+| [`scripts/build-apps.sh`](scripts/build-apps.sh) | Runs Bazel-in-Docker, stages the binary into `dist/` |
+| `dist/yarik-app` | Built artifact (gitignored); the only thing the stage installs |
+| [stage2/05-yarik-httpd/](stage2/05-yarik-httpd/) | Thin stage: installs `dist/yarik-app` + enables the service |
+| ├─ `00-run.sh` | Copies the binary into the rootfs, `systemctl enable` |
+| └─ `files/yarik-app.service` | systemd unit |
 | [config](config) | All build settings (lite-only `STAGE_LIST`, Wi-Fi country, SSH, user, hostname) |
 | [stage1/00-boot-files/files/config.txt](stage1/00-boot-files/files/config.txt) | Firmware config — `enable_uart=1` for the serial console |
-| [stage2/05-yarik-httpd/](stage2/05-yarik-httpd/) | The custom sub-stage that embeds the HTTP server |
-| ├─ `files/main.cpp` | The C++ server source (copied from the yarik-os project) |
-| ├─ `files/yarik-app.service` | systemd unit |
-| └─ `00-run.sh` | Copies the source in, compiles it, enables the service |
 
 ---
 
 ## How to add more customizations
 
-Customizations are **sub-stages** inside `stage2/`. Each is a numbered directory
-(`NN-name/`) run in ascending order; place yours after `05-` to run last. Within a
-sub-stage, pi-gen processes these files (see [pi-gen.md](pi-gen.md) for the full
-list):
+### Adding a compiled program (Bazel)
+
+1. **Add the source** under `apps/`, e.g. `apps/mytool/{main.cpp, BUILD.bazel}`:
+   ```python
+   # apps/mytool/BUILD.bazel
+   cc_binary(
+       name = "mytool",
+       srcs = ["main.cpp"],
+       visibility = ["//visibility:public"],
+   )
+   ```
+   It cross-compiles to a static aarch64 binary with the shared
+   [`apps/toolchain`](apps/toolchain/) — no extra setup needed.
+
+2. **Stage the artifact** by adding it to [`scripts/build-apps.sh`](scripts/build-apps.sh)
+   (build `//mytool:mytool` and `install` it into `dist/`).
+
+3. **Embed it** with a thin sub-stage, mirroring
+   [stage2/05-yarik-httpd/00-run.sh](stage2/05-yarik-httpd/00-run.sh): install
+   `${BASE_DIR}/dist/mytool` into `${ROOTFS_DIR}` and `systemctl enable` any
+   service. Stages hold **no source code** — only this install glue.
+
+### Adding OS-level config (no compilation)
+
+Sub-stages are numbered directories inside `stage2/` (`NN-name/`), run in
+ascending order — place yours after `05-` to run last. pi-gen processes (full
+list in [pi-gen.md](pi-gen.md)):
 
 - `00-packages` — newline/space-separated apt packages to install.
-- `00-run.sh` — a shell script run **on the host build machine**. The target
-  filesystem is at `${ROOTFS_DIR}`; use the `on_chroot` helper to run commands
-  *inside* the image (with the target's arm64 binaries, via QEMU).
+- `00-run.sh` — a host-side script. The target rootfs is `${ROOTFS_DIR}`; use the
+  `on_chroot` helper to run commands *inside* the image (target aarch64 binaries
+  via QEMU).
 - `files/` — assets you copy into the image.
-
-Example — add a tool and a service:
 
 ```bash
 mkdir -p stage2/06-mytool/files
@@ -150,16 +180,26 @@ EOS
 chmod +x stage2/06-mytool/00-run.sh
 ```
 
-To compile your own C/C++ in-image, mirror [stage2/05-yarik-httpd/00-run.sh](stage2/05-yarik-httpd/00-run.sh):
-copy the source into `${ROOTFS_DIR}` and run `g++` via `on_chroot` (the toolchain
-is already present from `stage2/01-sys-tweaks`).
-
 ---
 
 ## How it's built
 
-pi-gen assembles the root filesystem in **stages**, each layered on top of the
-previous, then packages the result into a `.img`:
+The build has **two phases** — compile the apps, then build the image. Both run
+in Docker (required on macOS; have Docker running):
+
+```bash
+make app      # 1. Bazel cross-compiles apps/ → dist/yarik-app (static aarch64)
+make image    # 2. pi-gen builds the image, embedding dist/yarik-app → deploy/
+make          # both, in order
+```
+
+**Phase 1 — `make app`** ([scripts/build-apps.sh](scripts/build-apps.sh)): builds
+the `apps/docker` builder image (Bazelisk + `aarch64-linux-gnu` cross compiler),
+then runs `bazel build` to produce a static aarch64 binary, staged into `dist/`.
+Bazel/download caches persist in `.cache/`.
+
+**Phase 2 — `make image`**: pi-gen assembles the rootfs in **stages**, each
+layered on the previous, then packages a `.img`:
 
 ```
 config (STAGE_LIST)
@@ -168,19 +208,14 @@ stage0  debootstrap → minimal Debian arm64
    │  rsync rootfs
 stage1  bootable: config.txt (UART), cmdline.txt, networking
    │  rsync rootfs
-stage2  Lite: ssh · Wi-Fi · apt · g++   ── 05-yarik-httpd compiles & enables the server
+stage2  Lite: ssh · Wi-Fi · apt   ── 05-yarik-httpd installs dist/yarik-app + enables service
    │
 EXPORT_IMAGE → deploy/yarikOS.img
 ```
 
-Builds **must** run on Linux, so on macOS use Docker (Docker Desktop running):
-
-```bash
-./build-docker.sh
-```
-
-The finished image lands in `deploy/`. To rebuild after a code change without
-re-running earlier stages, see the incremental-build notes in [pi-gen.md](pi-gen.md).
+The finished image lands in `deploy/`. (`make app` and `make image` are
+decoupled; `make image` fails fast if `dist/` is missing.) For incremental
+pi-gen rebuilds, see [pi-gen.md](pi-gen.md).
 
 ### Flashing
 

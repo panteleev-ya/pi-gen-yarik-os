@@ -1,20 +1,22 @@
 #!/bin/bash -e
 
-# Bake in the yarik-os C++ HTTP server (source copied from ~/Projects/yarik-os).
+# Embed the yarik-os HTTP server into the image.
 #
-# Instead of shipping a pre-built binary, we compile it natively inside the
-# target rootfs using the build-essential/g++ toolchain that Raspberry Pi OS
-# Lite already provides. That guarantees the binary matches the image's glibc
-# and arch (arm64), with no host cross-toolchain needed. It is then exposed as
-# a systemd service that starts on boot.
+# The binary is built separately by Bazel (see ../../apps and `make app`), which
+# cross-compiles a static aarch64 binary into ./dist. This stage only *consumes*
+# that artifact — no source code or compiler toolchain lives in the image layers.
 
-install -v -d "${ROOTFS_DIR}/usr/local/src/yarik-app"
-install -v -m 644 files/main.cpp "${ROOTFS_DIR}/usr/local/src/yarik-app/main.cpp"
+APP_BIN="${BASE_DIR}/dist/yarik-app"
+
+if [ ! -f "${APP_BIN}" ]; then
+	echo "ERROR: ${APP_BIN} is missing." >&2
+	echo "Build the custom apps first:  make app   (or ./scripts/build-apps.sh)" >&2
+	exit 1
+fi
+
+install -v -D -m 0755 "${APP_BIN}" "${ROOTFS_DIR}/usr/local/bin/yarik-app"
 install -v -m 644 files/yarik-app.service "${ROOTFS_DIR}/etc/systemd/system/yarik-app.service"
 
-on_chroot << 'EOF'
-set -e
-g++ -O2 -Wall -o /usr/local/bin/yarik-app /usr/local/src/yarik-app/main.cpp
-strip /usr/local/bin/yarik-app
+on_chroot << EOF
 systemctl enable yarik-app.service
 EOF

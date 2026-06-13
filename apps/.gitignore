@@ -1,0 +1,2 @@
+# Bazel convenience symlinks (bazel-bin, bazel-out, bazel-apps, ...)
+/bazel-*

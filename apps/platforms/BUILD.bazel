@@ -1,0 +1,10 @@
+# The hardware we target: Raspberry Pi Zero 2 W running a 64-bit (ARMv8-A,
+# aarch64) userland on a Cortex-A53.
+platform(
+    name = "rpi_zero2w",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    visibility = ["//visibility:public"],
+)
