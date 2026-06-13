@@ -49,3 +49,5 @@ otg_mode=1
 dtoverlay=dwc2,dr_mode=host
 
 [all]
+# Enable UART for serial console
+enable_uart=1

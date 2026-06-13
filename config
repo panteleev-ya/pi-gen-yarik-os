@@ -1,0 +1,25 @@
+IMG_NAME='yarikOS'
+
+# --- Lite-only build ---------------------------------------------------------
+# Only run the stages needed for a headless, terminal-only Raspberry Pi OS Lite
+# image. Stages 3/4/5 (desktop, X11/LXDE, browsers, office, Scratch, etc.) are
+# never executed, so the build is much faster and the image carries no GUI.
+STAGE_LIST="stage0 stage1 stage2"
+
+# Strip cloud-init: it adds boot latency and isn't needed on a terminal-only
+# Pi Zero 2 W. Re-enable by setting this to 1.
+ENABLE_CLOUD_INIT=0
+
+# --- Access ------------------------------------------------------------------
+FIRST_USER_NAME='yarikp'
+FIRST_USER_PASS='12345'
+
+ENABLE_SSH=1
+
+# mDNS hostname (avahi is enabled in the lite stage), so you can reach the board
+# headlessly with: ssh yarikp@yarikos.local
+TARGET_HOSTNAME='yarikos'
+
+# --- Wi-Fi -------------------------------------------------------------------
+# Sets the WLAN regulatory domain and unblocks the radio on first boot.
+WPA_COUNTRY='US'
