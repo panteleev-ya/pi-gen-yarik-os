@@ -31,8 +31,8 @@ terminal toolset, and our web server listening on port `1337`.
 | **yarik-os HTTP server** | Bazel-built static aarch64 binary, runs as `yarik-app.service` on `:1337` |
 
 Default user: **`yarikp`**, hostname **`yarikos`**. SSH is **key-only** — there
-is no password login; you authenticate with the SSH key you set in your `config`
-(see [Project config reference](#project-config-reference)).
+is no password login; you authenticate with the SSH key you set in your `config`,
+and `sudo` needs no password (see [Project config reference](#project-config-reference)).
 
 ---
 
@@ -262,6 +262,7 @@ Key values in [config.example](config.example) (full reference in [pi-gen.md](pi
 | `FIRST_USER_NAME` | `yarikp` | First user account |
 | `PUBKEY_SSH_FIRST_USER` | *(your SSH public key)* | Installed to the user's `authorized_keys` |
 | `PUBKEY_ONLY_SSH` | `1` | Key-only SSH: `PasswordAuthentication no` |
+| `PASSWORDLESS_SUDO` | `1` | `sudo` without a password (the account has none) |
 | `ENABLE_SSH` | `1` | SSH server enabled |
 | `TARGET_HOSTNAME` | `yarikos` | mDNS name `yarikos.local` |
 | `WPA_COUNTRY` | `US` | WLAN regulatory domain (set to your country) |
@@ -269,3 +270,5 @@ Key values in [config.example](config.example) (full reference in [pi-gen.md](pi
 
 > `FIRST_USER_PASS` is intentionally left unset, which locks the account
 > password. Combined with key-only SSH, the image ships with no password login.
+> `PASSWORDLESS_SUDO=1` lets that user run `sudo` anyway, so whoever holds the
+> SSH key has full admin rights.

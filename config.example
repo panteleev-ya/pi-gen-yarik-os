@@ -29,6 +29,11 @@ PUBKEY_SSH_FIRST_USER='ssh-ed25519 AAAA... your-key-here'
 # allow only public-key logins. Requires PUBKEY_SSH_FIRST_USER above.
 PUBKEY_ONLY_SSH=1
 
+# sudo without a password. The account has no password (FIRST_USER_PASS unset),
+# so without this sudo could never succeed. With key-only SSH, the SSH key is
+# effectively the admin credential: keep it safe.
+PASSWORDLESS_SUDO=1
+
 # mDNS hostname (avahi is enabled in the lite stage), so you can reach the board
 # headlessly with: ssh yarikp@yarikos.local
 TARGET_HOSTNAME='yarikos'
