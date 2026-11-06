@@ -30,7 +30,9 @@ terminal toolset, and our web server listening on port `1337`.
 | mDNS | avahi → reachable as `yarikos.local` |
 | **yarik-os HTTP server** | Bazel-built static aarch64 binary, runs as `yarik-app.service` on `:1337` |
 
-Default login: **`yarikp` / `12345`**, hostname **`yarikos`**.
+Default user: **`yarikp`**, hostname **`yarikos`**. SSH is **key-only** — there
+is no password login; you authenticate with the SSH key you set in your `config`
+(see [Project config reference](#project-config-reference)).
 
 ---
 
@@ -130,7 +132,7 @@ source or a compiler; they only consume the pre-built binary from `dist/`.
 | [stage2/05-yarik-httpd/](stage2/05-yarik-httpd/) | Thin stage: installs `dist/yarik-app` + enables the service |
 | ├─ `00-run.sh` | Copies the binary into the rootfs, `systemctl enable` |
 | └─ `files/yarik-app.service` | systemd unit |
-| [config](config) | All build settings (lite-only `STAGE_LIST`, Wi-Fi country, SSH, user, hostname) |
+| [config.example](config.example) | Template for your git-ignored `config` (lite-only `STAGE_LIST`, Wi-Fi country, SSH, user, hostname) |
 | [stage1/00-boot-files/files/config.txt](stage1/00-boot-files/files/config.txt) | Firmware config — `enable_uart=1` for the serial console |
 
 ---
@@ -243,14 +245,27 @@ on `screen`.
 
 ## Project config reference
 
-Key values in [config](config) (full reference in [pi-gen.md](pi-gen.md)):
+Your build settings live in a `config` file, which is **git-ignored** so secrets
+(SSH keys, any passwords) never get committed. Copy the template and edit it:
+
+```bash
+cp config.example config
+$EDITOR config    # set PUBKEY_SSH_FIRST_USER to your SSH public key
+```
+
+Key values in [config.example](config.example) (full reference in [pi-gen.md](pi-gen.md)):
 
 | Variable | Value | Effect |
 |---|---|---|
 | `STAGE_LIST` | `stage0 stage1 stage2` | Lite-only; no desktop stages run |
 | `IMG_NAME` | `yarikOS` | Output image name |
-| `FIRST_USER_NAME` / `FIRST_USER_PASS` | `yarikp` / `12345` | Default login (change before shipping) |
+| `FIRST_USER_NAME` | `yarikp` | First user account |
+| `PUBKEY_SSH_FIRST_USER` | *(your SSH public key)* | Installed to the user's `authorized_keys` |
+| `PUBKEY_ONLY_SSH` | `1` | Key-only SSH: `PasswordAuthentication no` |
 | `ENABLE_SSH` | `1` | SSH server enabled |
 | `TARGET_HOSTNAME` | `yarikos` | mDNS name `yarikos.local` |
 | `WPA_COUNTRY` | `US` | WLAN regulatory domain (set to your country) |
 | `ENABLE_CLOUD_INIT` | `0` | Skips cloud-init seed files |
+
+> `FIRST_USER_PASS` is intentionally left unset, which locks the account
+> password. Combined with key-only SSH, the image ships with no password login.

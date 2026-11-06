@@ -12,9 +12,22 @@ ENABLE_CLOUD_INIT=0
 
 # --- Access ------------------------------------------------------------------
 FIRST_USER_NAME='yarikp'
-FIRST_USER_PASS='12345'
+
+# Password login is intentionally NOT configured. Leaving FIRST_USER_PASS unset
+# locks the account password, and SSH below is key-only. This ships a secure
+# image by default. If you really need a console/password login, uncomment and
+# set a strong, unique password (never commit it):
+#FIRST_USER_PASS='change-me'
 
 ENABLE_SSH=1
+
+# Key-only SSH. Paste your SSH *public* key below (the contents of, e.g.,
+# ~/.ssh/id_ed25519.pub). This is installed to the first user's authorized_keys.
+PUBKEY_SSH_FIRST_USER='ssh-ed25519 AAAA... your-key-here'
+
+# Disable SSH password authentication entirely (PasswordAuthentication no) and
+# allow only public-key logins. Requires PUBKEY_SSH_FIRST_USER above.
+PUBKEY_ONLY_SSH=1
 
 # mDNS hostname (avahi is enabled in the lite stage), so you can reach the board
 # headlessly with: ssh yarikp@yarikos.local
